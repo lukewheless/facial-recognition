@@ -3,10 +3,9 @@ import cvlib as cv
 import cv2
 import numpy as np
 import tensorflow as tp
-import dlib
 
 video_capture = cv2.VideoCapture(0)
-detector = dlib.get_frontal_face_detector()
+padding = 20
 
 dean_image = face_recognition.load_image_file("Dean.PNG")
 dean_face_encoding = face_recognition.face_encodings(dean_image)[0]
@@ -74,7 +73,7 @@ known_face_names = [
     "Hannah",
     "Jared"
 ]
-
+    
 face_locations = []
 face_encodings = []
 face_names = []
@@ -83,25 +82,20 @@ process_this_frame = True
 while True:
 
     ret, frame = video_capture.read()
-    face, confidence = cv.detect_face(frame)
+    frame = cv2.flip(frame, 1)
     small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
     rgb_small_frame = small_frame[:, :, ::-1]
-
-    frame = cv2.flip(frame, 1)
+    face, confidence = cv.detect_face(frame)
     font = cv2.FONT_HERSHEY_DUPLEX
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    padding = 20
-    faces = detector(gray)
-
     i = 0
-    
-    # Only process every other frame of video to save time
+
     if process_this_frame:
         # Find all the faces and face encodings in the current frame of video
         face_locations = face_recognition.face_locations(rgb_small_frame)
         face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
 
         face_names = []
+
         for face_encoding in face_encodings:
             # See if the face is a match for the known faces
             matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
@@ -114,42 +108,31 @@ while True:
                 name = known_face_names[best_match_index]
             face_names.append(name)
 
-    # Count
-    for face in faces:
+    for idx, f in enumerate(face):    
         i = i+1
+        startX, startY = max(0, f[0]-padding), max(0, f[1]-padding)
+        endX, endY = min(frame.shape[1]-1, f[2]+padding), min(frame.shape[0]-1, f[3]+padding)
+        cv2.rectangle(frame, (startX + 10, startY + 70), (endX - 10, endY - 20), (0,255,0), 2)
+        cv2.rectangle(frame, (startX + 10, endY - 50), (endX - 10, endY - 20), (0, 0, 255), cv2.FILLED)
 
-        # Box
-        left, top = face.left(), face.top()
-        right, bottom = face.right(), face.bottom()
-
-        cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
-        cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv2.FILLED)
-
-        # Gender
-        for idx, f in enumerate(faces):
-            #right, left = max(0, f[0]-padding), max(0, f[1]-padding)
-            #bottom, top = min(frame.shape[1]-1, f[2]+padding), min(frame.shape[0]-1, f[3]+padding)
-            #face_crop = np.copy(frame[left:top, right:bottom]) 
-            label, confidence = cv.detect_gender(frame) #faces?
-            idx = np.argmax(confidence)
-            label = label[idx]
-            label = "{}: {:.2f}%".format(label, confidence[idx] * 100)
-
-        # Label
-        cv2.putText(frame, label, (left + 6, top - 6), font, 1, (0,255,0), 2)
-        cv2.putText(frame, name, (left + 6, bottom - 6), 1, font, (255, 255, 255), 3)
-    cv2.putText(frame, 'NUMBER OF FACES = ' + str(i), (50, 50), font, 1, (0, 255, 255), 1, cv2.LINE_4)
-
-
+        face_crop = np.copy(frame[startY:endY, startX:endX]) 
+        label, confidence = cv.detect_gender(face_crop)
+        idx = np.argmax(confidence)
+        label = label[idx]
+        label = "{}: {:.2f}%".format(label, confidence[idx] * 100)
+        Y = startY + 70 if startY - 70 > 70 else startY + 70
+        
+        cv2.putText(frame, label, (startX + 10, Y - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
+        cv2.putText(frame, name, (startX + 12, endY - 25), 1, font, (255, 255, 255), 3) 
+    cv2.putText(frame, 'Faces = ' + str(i), (50, 50), font, 1, (0, 255, 255), 2)
+    cv2.imshow("Facial Recognition", frame)
     process_this_frame = not process_this_frame
-    cv2.imshow('Video', frame)
 
-    # Hit 'q' on the keyboard to quit!
+    print("Total Number of Faces Detected:", len(face_locations))
+    print("Gender is", label)
+
+    # press "q" to stop
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
-
-print("Total Number of faces detected:", len(face_locations))
-print("Gender is", label)
-
 video_capture.release()
-cv2.destroyAllWindows()
+cv2.destroyAllWindows() 
