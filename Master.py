@@ -73,7 +73,6 @@ known_face_names = [
     "Hannah",
     "Jared"
 ]
-    
 face_locations = []
 face_encodings = []
 face_names = []
@@ -89,31 +88,43 @@ while True:
     font = cv2.FONT_HERSHEY_DUPLEX
     i = 0
 
+    # Only process every other frame of video to save time
     if process_this_frame:
         # Find all the faces and face encodings in the current frame of video
         face_locations = face_recognition.face_locations(rgb_small_frame)
         face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
 
         face_names = []
-
         for face_encoding in face_encodings:
-            # See if the face is a match for the known faces
+            # See if the face is a match for the known face(s)
             matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
             name = "Unknown"
 
             face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
             best_match_index = np.argmin(face_distances)
-
             if matches[best_match_index]:
                 name = known_face_names[best_match_index]
+
             face_names.append(name)
+
+    process_this_frame = not process_this_frame
+
+    for (top, right, bottom, left), name in zip(face_locations, face_names):
+        # Scale back up face locations since the frame we detected in was scaled to 1/4 size
+        top *= 4
+        right *= 4
+        bottom *= 4
+        left *= 4
+        #cv2.rectangle(frame, (left, bottom - 35), (right, bottom + 5), (0, 0, 255), cv2.FILLED)
+        cv2.putText(frame, name, (left + 25, bottom), font, 1.0, (255, 255, 255), 3) 
+         
 
     for idx, f in enumerate(face):    
         i = i+1
         startX, startY = max(0, f[0]-padding), max(0, f[1]-padding)
         endX, endY = min(frame.shape[1]-1, f[2]+padding), min(frame.shape[0]-1, f[3]+padding)
         cv2.rectangle(frame, (startX + 10, startY + 70), (endX - 10, endY - 20), (0,255,0), 2)
-        cv2.rectangle(frame, (startX + 10, endY - 50), (endX - 10, endY - 20), (0, 0, 255), cv2.FILLED)
+        #cv2.rectangle(frame, (startX + 10, endY - 60), (endX - 10, endY - 20), (0, 0, 255), cv2.FILLED)
 
         face_crop = np.copy(frame[startY:endY, startX:endX]) 
         label, confidence = cv.detect_gender(face_crop)
@@ -123,16 +134,18 @@ while True:
         Y = startY + 70 if startY - 70 > 70 else startY + 70
         
         cv2.putText(frame, label, (startX + 10, Y - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
-        cv2.putText(frame, name, (startX + 12, endY - 25), 1, font, (255, 255, 255), 3) 
+
+
+    # Display the resulting image & count
     cv2.putText(frame, 'Faces = ' + str(i), (50, 50), font, 1, (0, 255, 255), 2)
     cv2.imshow("Facial Recognition", frame)
-    process_this_frame = not process_this_frame
 
-    print("Total Number of Faces Detected:", len(face_locations))
-    print("Gender is", label)
-
-    # press "q" to stop
+    # Hit 'q' on the keyboard to quit!
     if cv2.waitKey(1) & 0xFF == ord('q'):
+        print("Total Number of Faces Detected:", len(face_locations))
+        print("Gender is", label)
         break
+
+# Release handle to the webcam
 video_capture.release()
-cv2.destroyAllWindows() 
+cv2.destroyAllWindows()
